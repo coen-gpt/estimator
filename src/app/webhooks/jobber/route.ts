@@ -26,7 +26,11 @@ export async function POST(req: Request) {
 
   let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(payloadText) as Record<string, unknown>;
+    const parsed = JSON.parse(payloadText) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json({ error: "Webhook payload must be a JSON object" }, { status: 400 });
+    }
+    payload = parsed as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
         payloadHash: hash,
         topic,
         connectionId,
-        rawPayload: payload
+        rawPayload: payload as Prisma.InputJsonValue
       }
     });
 
