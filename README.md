@@ -198,8 +198,13 @@ Add all values from `.env.example` to:
 
 ### 4) Configure database migration on deploy
 Recommended:
-- Add a `postinstall` script if you want automatic Prisma generate.
+- `postinstall` already runs `prisma generate` in this repo.
 - Run `npm run prisma:migrate` via Vercel build command or a deploy hook.
+
+Suggested Vercel build command:
+```bash
+npm run prisma:migrate && npm run build
+```
 
 ### 5) Add custom domain
 In Vercel Project Settings > Domains:
