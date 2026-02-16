@@ -1,0 +1,79 @@
+:root {
+  --bg: #f7f8fb;
+  --card: #ffffff;
+  --text: #152238;
+  --muted: #586479;
+  --accent: #0f766e;
+  --danger: #b91c1c;
+  --border: #d6dbe7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: radial-gradient(circle at top left, #eef4ff, var(--bg));
+  color: var(--text);
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+a {
+  color: var(--accent);
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.button {
+  display: inline-block;
+  border: 1px solid var(--accent);
+  color: white;
+  background: var(--accent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.button.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  padding: 10px;
+}
+
+.code {
+  font-family: Menlo, monospace;
+  background: #edf2f7;
+  padding: 2px 6px;
+  border-radius: 6px;
+}

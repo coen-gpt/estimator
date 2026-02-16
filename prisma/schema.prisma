@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Connection {
+  id             String         @id @default(cuid())
+  provider       String         @default("jobber")
+  externalUserId String?
+  accountName    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  lastRefreshedAt DateTime?
+
+  token          Token?
+  webhookEvents  WebhookEvent[]
+
+  @@index([provider])
+}
+
+model Token {
+  id           String     @id @default(cuid())
+  connectionId String     @unique
+  accessToken  String
+  refreshToken String
+  scopes       String[]
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model WebhookEvent {
+  id            String   @id @default(cuid())
+  connectionId  String?
+  externalId    String?
+  payloadHash   String
+  topic         String?
+  receivedAt    DateTime @default(now())
+  processedAt   DateTime?
+  rawPayload    Json
+
+  connection Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  jobs       Job[]
+
+  @@unique([externalId])
+  @@unique([payloadHash])
+  @@index([connectionId])
+  @@index([receivedAt])
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  webhookEventId String    @unique
+  status         JobStatus @default(PENDING)
+  attempts       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  webhookEvent WebhookEvent @relation(fields: [webhookEventId], references: [id], onDelete: Cascade)
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
