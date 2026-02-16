@@ -79,7 +79,7 @@ Required values:
 - `JOBBER_CLIENT_SECRET`
 - `JOBBER_REDIRECT_URI` (must exactly match callback URL in Jobber app settings)
 - `OAUTH_STATE_SECRET` (long random secret used for signed OAuth state)
-- `APP_BASE_URL` (`https://app.coenconnection.com` in production)
+- `APP_BASE_URL` (`https://app.coenconstruction.com` in production)
 
 ## Prisma setup
 1. Install dependencies:
@@ -161,9 +161,9 @@ Open [http://localhost:3000](http://localhost:3000).
 Create app in Jobber Developer Center with:
 - App name: `CoenGPT Estimator`
 - Developer name: `Coen Construction`
-- Callback URL: `https://app.coenconnection.com/jobber/callback`
-- Manage App URL: `https://app.coenconnection.com/connections`
-- Webhook URL: `https://app.coenconnection.com/webhooks/jobber`
+- Callback URL: `https://app.coenconstruction.com/jobber/callback`
+- Manage App URL: `https://app.coenconstruction.com/connections`
+- Webhook URL: `https://app.coenconstruction.com/webhooks/jobber`
 
 Scopes guidance (minimum viable):
 - Start with read/write scopes only for quotes, clients, and properties required by estimator workflows.
@@ -208,7 +208,7 @@ npm run prisma:migrate && npm run build
 
 ### 5) Add custom domain
 In Vercel Project Settings > Domains:
-- Add `app.coenconnection.com`
+- Add `app.coenconstruction.com`
 - Vercel gives a CNAME target such as `cname.vercel-dns.com`
 
 ### 6) Add DNS in Squarespace
