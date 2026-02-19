@@ -109,6 +109,48 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+
+## Test the Residential Estimator Designer
+Use this flow to validate the new customer-facing AI estimator/designer widget end-to-end.
+
+1. Install dependencies and run the app:
+```bash
+npm install
+npm run dev
+```
+2. Open `http://localhost:3000`.
+3. Click **Open AI Project Designer** (bottom-right floating button).
+4. Fill in:
+   - Project details (required)
+   - Timeline/address (optional)
+   - 1+ reference photos (recommended for better concept output)
+5. Click **Create concept + rough estimate**.
+6. Verify results:
+   - Assistant guidance message
+   - Concept rendering image
+   - Rough estimate range + line-item split
+   - Non-binding disclaimer requiring on-site human estimator
+
+### API-only test (no browser)
+You can also test the estimator endpoint directly:
+
+```bash
+curl -X POST http://localhost:3000/api/agent/residential/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "We want a 400 sq ft kitchen remodel with quartz counters and custom cabinets."}
+    ],
+    "timeline": "3 months",
+    "projectAddress": "123 Main St",
+    "photos": [
+      {"name": "kitchen1.jpg", "size": 120034, "type": "image/jpeg"}
+    ]
+  }'
+```
+
+Expected response includes `assistantMessage`, `roughEstimate`, and `rendering.imageUrl`.
+
 ## Implemented endpoints
 
 ### OAuth
