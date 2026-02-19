@@ -80,6 +80,8 @@ Required values:
 - `JOBBER_REDIRECT_URI` (must exactly match callback URL in Jobber app settings)
 - `OAUTH_STATE_SECRET` (long random secret used for signed OAuth state)
 - `APP_BASE_URL` (`https://app.coenconstruction.com` in production)
+- `OPENAI_API_KEY` (server-side key for estimator AI responses)
+- `OPENAI_MODEL` (optional, defaults to `gpt-4.1-mini`)
 
 ## Prisma setup
 1. Install dependencies:
@@ -108,6 +110,57 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+
+## Test the Residential Estimator Designer
+Use this flow to validate the new customer-facing AI estimator/designer widget end-to-end.
+
+1. Install dependencies and run the app:
+```bash
+npm install
+npm run dev
+```
+2. Open `http://localhost:3000`.
+3. Click **Open AI Project Designer** (bottom-right floating button).
+4. Fill in:
+   - Project details (required)
+   - Timeline/address (optional)
+   - 1+ reference photos (strongly recommended so rendering is based on the actual house/project condition)
+5. Click **Create concept + rough estimate**.
+6. Verify results:
+   - Assistant guidance message
+   - Concept rendering image
+   - Rough estimate range + line-item split
+   - Non-binding disclaimer requiring on-site human estimator
+
+### API-only test (no browser)
+You can also test the estimator endpoint directly:
+
+```bash
+curl -X POST http://localhost:3000/api/agent/residential/chat \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "We want a 400 sq ft kitchen remodel with quartz counters and custom cabinets."}
+    ],
+    "timeline": "3 months",
+    "projectAddress": "123 Main St",
+    "photos": [
+      {"name": "kitchen1.jpg", "size": 120034, "type": "image/jpeg"}
+    ]
+  }'
+```
+
+Expected response includes `assistantMessage`, `roughEstimate`, and `rendering.imageUrl`.
+
+Estimator AI note:
+- The widget AI logic uses the server route with `OPENAI_API_KEY` from environment variables.
+- Do **not** hardcode API keys in source files; keep them only in `.env` / deployment secrets.
+
+- If you see `Unexpected token` or `Request Entity Too Large`, reduce photo count/size; the widget now auto-optimizes uploads before sending.
+
+
+If no photos are uploaded, you can set `GOOGLE_MAPS_API_KEY` and provide a project address so the app can use Google Street View as an address-based fallback rendering source.
 
 ## Implemented endpoints
 
