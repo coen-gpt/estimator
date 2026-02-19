@@ -23,7 +23,15 @@ type AgentResult = {
   rendering: {
     title: string;
     imageUrl: string;
+    source: "customer_upload" | "google_street_view" | "fallback_mockup";
   };
+};
+
+type SerializablePhoto = {
+  name: string;
+  size: number;
+  type: string;
+  dataUrl: string;
 };
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -31,6 +39,21 @@ const currency = new Intl.NumberFormat("en-US", {
   currency: "USD",
   maximumFractionDigits: 0
 });
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error(`Failed to read ${file.name}.`));
+    };
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function EstimatorAgentWidget() {
   const [open, setOpen] = useState(false);
@@ -65,6 +88,15 @@ export default function EstimatorAgentWidget() {
     setError(null);
 
     try {
+      const photosWithData = await Promise.all(
+        photos.slice(0, 3).map(async (photo): Promise<SerializablePhoto> => ({
+          name: photo.name,
+          size: photo.size,
+          type: photo.type,
+          dataUrl: await fileToDataUrl(photo)
+        }))
+      );
+
       const response = await fetch("/api/agent/residential/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,7 +104,7 @@ export default function EstimatorAgentWidget() {
           messages: nextMessages,
           timeline,
           projectAddress,
-          photos: photos.map((photo) => ({ name: photo.name, size: photo.size, type: photo.type }))
+          photos: photosWithData
         })
       });
 
@@ -161,6 +193,14 @@ export default function EstimatorAgentWidget() {
           {result ? (
             <section className="estimator-result card">
               <h3>Design concept rendering</h3>
+              <p className="rendering-source">
+                Source:{" "}
+                {result.rendering.source === "customer_upload"
+                  ? "Uploaded customer photo"
+                  : result.rendering.source === "google_street_view"
+                    ? "Google Street View (address-based fallback)"
+                    : "Fallback mock-up"}
+              </p>
               <Image src={result.rendering.imageUrl} alt={result.rendering.title} width={640} height={360} unoptimized />
               <h3>Rough estimate ({result.roughEstimate.projectType})</h3>
               <p className="estimate-range">

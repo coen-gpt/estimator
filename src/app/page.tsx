@@ -8,7 +8,7 @@ export default function HomePage() {
         <h1>Residential AI Estimator + Project Designer</h1>
         <p>
           Give customers a sleek chat experience where they can describe their project, upload photos, and get a
-          concept drawing/rendering with a rough, non-binding budget range.
+          concept drawing/rendering that prioritizes uploaded house photos (or Google Street View from address fallback) with a rough, non-binding budget range.
         </p>
         <p>
           The tool sets expectations clearly: better details + more photos = better design guidance and better

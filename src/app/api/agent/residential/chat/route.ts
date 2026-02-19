@@ -11,6 +11,7 @@ type UploadedPhoto = {
   name: string;
   size: number;
   type: string;
+  dataUrl?: string;
 };
 
 type EstimatorRequest = {
@@ -96,6 +97,48 @@ function buildMockupSvg(type: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
+function buildGoogleStreetViewUrl(address: string): string | null {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    size: "1280x720",
+    location: address,
+    fov: "90",
+    pitch: "0",
+    key: apiKey
+  });
+
+  return `https://maps.googleapis.com/maps/api/streetview?${params.toString()}`;
+}
+
+function pickRenderingSource(body: EstimatorRequest, projectType: string): { imageUrl: string; source: string } {
+  const firstUploadedPhoto = body.photos?.find((photo) => typeof photo.dataUrl === "string" && photo.dataUrl.startsWith("data:image/"));
+  if (firstUploadedPhoto?.dataUrl) {
+    return {
+      imageUrl: firstUploadedPhoto.dataUrl,
+      source: "customer_upload"
+    };
+  }
+
+  if (body.projectAddress) {
+    const googleStreetViewUrl = buildGoogleStreetViewUrl(body.projectAddress);
+    if (googleStreetViewUrl) {
+      return {
+        imageUrl: googleStreetViewUrl,
+        source: "google_street_view"
+      };
+    }
+  }
+
+  return {
+    imageUrl: buildMockupSvg(projectType),
+    source: "fallback_mockup"
+  };
+}
+
 function buildEstimate(text: string): { type: string; lines: EstimateLine[]; low: number; high: number } {
   const type = identifyProjectType(text);
   const sqft = extractSqft(text);
@@ -127,10 +170,19 @@ export async function POST(req: Request) {
     const transcript = body.messages.map((entry) => entry.content).join("\n");
     const estimate = buildEstimate(transcript);
     const photoCount = body.photos?.length ?? 0;
+    const rendering = pickRenderingSource(body, estimate.type);
+
+    const sourceMessage =
+      rendering.source === "customer_upload"
+        ? "I used your uploaded house photo as the rendering base so the concept is grounded in your real conditions."
+        : rendering.source === "google_street_view"
+          ? "I used a Google Street View photo from your project address as the rendering base because no upload was provided."
+          : "I could not access a house photo, so I generated a generic concept placeholder. Add a photo or provide a Google Maps API key for address-based imagery.";
 
     const assistantMessage = [
       `Great start! I reviewed your ${estimate.type} project details${photoCount ? ` and ${photoCount} uploaded photo(s)` : ""}.`,
       "I can act as your personal project designer by turning your scope into concept drawings/renderings and early budget guidance.",
+      sourceMessage,
       "Tip: the more measurements, finish preferences, must-haves, and progress photos you share, the more useful and accurate your concept + range will be.",
       `Based on what you provided, your preliminary planning range is **$${estimate.low.toLocaleString()} - $${estimate.high.toLocaleString()}**.`,
       "This is a planning estimate only (not a formal proposal). A licensed human estimator must confirm site conditions, measurements, and code requirements on-site."
@@ -146,8 +198,9 @@ export async function POST(req: Request) {
         lineItems: estimate.lines
       },
       rendering: {
-        title: `${estimate.type[0].toUpperCase()}${estimate.type.slice(1)} concept mock-up`,
-        imageUrl: buildMockupSvg(estimate.type)
+        title: `${estimate.type[0].toUpperCase()}${estimate.type.slice(1)} concept rendering`,
+        imageUrl: rendering.imageUrl,
+        source: rendering.source
       }
     });
   } catch (error) {

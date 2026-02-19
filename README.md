@@ -123,7 +123,7 @@ npm run dev
 4. Fill in:
    - Project details (required)
    - Timeline/address (optional)
-   - 1+ reference photos (recommended for better concept output)
+   - 1+ reference photos (strongly recommended so rendering is based on the actual house/project condition)
 5. Click **Create concept + rough estimate**.
 6. Verify results:
    - Assistant guidance message
@@ -150,6 +150,8 @@ curl -X POST http://localhost:3000/api/agent/residential/chat \
 ```
 
 Expected response includes `assistantMessage`, `roughEstimate`, and `rendering.imageUrl`.
+
+If no photos are uploaded, you can set `GOOGLE_MAPS_API_KEY` and provide a project address so the app can use Google Street View as an address-based fallback rendering source.
 
 ## Implemented endpoints
 
