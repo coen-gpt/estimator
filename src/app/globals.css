@@ -32,21 +32,22 @@ a {
 .card {
   border: 1px solid var(--border);
   background: var(--card);
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 18px;
   margin: 12px 0;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
 }
 
 .button {
   display: inline-block;
   border: 1px solid var(--accent);
   color: white;
-  background: var(--accent);
-  border-radius: 8px;
-  padding: 8px 12px;
+  background: linear-gradient(135deg, #0f766e, #0ea5e9);
+  border-radius: 10px;
+  padding: 10px 14px;
   text-decoration: none;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .button.secondary {
@@ -76,4 +77,120 @@ td {
   background: #edf2f7;
   padding: 2px 6px;
   border-radius: 6px;
+}
+
+.estimator-trigger {
+  position: fixed;
+  right: 24px;
+  bottom: 22px;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f766e, #0ea5e9);
+  box-shadow: 0 14px 30px rgba(2, 132, 199, 0.35);
+  cursor: pointer;
+  z-index: 50;
+}
+
+.estimator-widget {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  width: min(460px, calc(100vw - 28px));
+  max-height: calc(100vh - 105px);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.84));
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.25);
+  z-index: 40;
+}
+
+.estimator-header h2 {
+  margin: 6px 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #0284c7;
+}
+
+.estimator-header p {
+  color: var(--muted);
+}
+
+.estimator-messages {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.92);
+  margin: 12px 0;
+}
+
+.bubble {
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: 8px 0;
+  line-height: 1.4;
+}
+
+.bubble.assistant {
+  background: #dcfce7;
+}
+
+.bubble.user {
+  background: #dbeafe;
+}
+
+.estimator-form label {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.estimator-form input,
+.estimator-form textarea {
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px;
+  font: inherit;
+  background: #ffffff;
+}
+
+.estimator-form small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.estimator-result img {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  height: auto;
+}
+
+.estimate-range {
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.error-text {
+  color: var(--danger);
+  margin-top: 8px;
+}
+
+.disclaimer {
+  font-size: 0.85rem;
+  color: var(--muted);
 }
