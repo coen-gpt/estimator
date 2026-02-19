@@ -40,7 +40,8 @@ const currency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
-const MAX_RENDERING_PHOTOS = 2;
+const MAX_PROPERTY_RENDERING_PHOTOS = 2;
+const MAX_INSPIRATION_PHOTOS = 4;
 const MAX_IMAGE_DIMENSION = 1280;
 const JPEG_QUALITY = 0.72;
 
@@ -109,22 +110,28 @@ export default function EstimatorAgentWidget() {
   const [input, setInput] = useState("");
   const [timeline, setTimeline] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
-  const [photos, setPhotos] = useState<File[]>([]);
+  const [propertyPhotos, setPropertyPhotos] = useState<File[]>([]);
+  const [inspirationPhotos, setInspirationPhotos] = useState<File[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
       content:
-        "Welcome! I am your Personal Project Designer + Estimator. Share your room size, materials, goals, must-haves, and photos so I can create a stronger concept rendering and a more accurate rough budget range."
+        "Welcome! I am your Personal Project Designer + Estimator. Upload property/project photos plus inspiration photos so I can tailor a better concept and estimate range."
     }
   ]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AgentResult | null>(null);
 
-  const selectedPhotoText = useMemo(() => {
-    if (!photos.length) return "No photos uploaded yet";
-    return `${photos.length} photo${photos.length > 1 ? "s" : ""} uploaded — great, this improves concept quality.`;
-  }, [photos]);
+  const selectedPropertyPhotoText = useMemo(() => {
+    if (!propertyPhotos.length) return "No property/project photos uploaded yet.";
+    return `${propertyPhotos.length} property/project photo${propertyPhotos.length > 1 ? "s" : ""} uploaded.`;
+  }, [propertyPhotos]);
+
+  const selectedInspirationPhotoText = useMemo(() => {
+    if (!inspirationPhotos.length) return "No inspiration photos uploaded yet.";
+    return `${inspirationPhotos.length} inspiration photo${inspirationPhotos.length > 1 ? "s" : ""} uploaded.`;
+  }, [inspirationPhotos]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -137,8 +144,17 @@ export default function EstimatorAgentWidget() {
     setError(null);
 
     try {
-      const photosWithData = await Promise.all(
-        photos.slice(0, MAX_RENDERING_PHOTOS).map(async (photo): Promise<SerializablePhoto> => ({
+      const propertyPhotosWithData = await Promise.all(
+        propertyPhotos.slice(0, MAX_PROPERTY_RENDERING_PHOTOS).map(async (photo): Promise<SerializablePhoto> => ({
+          name: photo.name,
+          size: photo.size,
+          type: photo.type,
+          dataUrl: await fileToOptimizedDataUrl(photo)
+        }))
+      );
+
+      const inspirationPhotosWithData = await Promise.all(
+        inspirationPhotos.slice(0, MAX_INSPIRATION_PHOTOS).map(async (photo): Promise<SerializablePhoto> => ({
           name: photo.name,
           size: photo.size,
           type: photo.type,
@@ -153,7 +169,8 @@ export default function EstimatorAgentWidget() {
           messages: nextMessages,
           timeline,
           projectAddress,
-          photos: photosWithData
+          propertyPhotos: propertyPhotosWithData,
+          inspirationPhotos: inspirationPhotosWithData
         })
       });
 
@@ -184,8 +201,8 @@ export default function EstimatorAgentWidget() {
             <p className="eyebrow">AI ESTIMATOR + DESIGNER</p>
             <h2>Your Personal Project Designer</h2>
             <p>
-              The more details and photos you share, the better your rendering concept and preliminary budget
-              guidance will be.
+              Upload both current-condition property photos and design inspiration photos for the most helpful concept
+              rendering and estimate guidance.
             </p>
           </header>
 
@@ -208,15 +225,28 @@ export default function EstimatorAgentWidget() {
               <input value={timeline} onChange={(event) => setTimeline(event.target.value)} />
             </label>
             <label>
-              Upload inspiration or current-condition photos
+              Property / Project photos (current conditions)
               <input
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(event) => setPhotos(Array.from(event.target.files ?? []))}
+                onChange={(event) => setPropertyPhotos(Array.from(event.target.files ?? []))}
               />
             </label>
-            <small>{selectedPhotoText} (we automatically optimize uploads before sending)</small>
+            <small>{selectedPropertyPhotoText}</small>
+
+            <label>
+              Ideas / Inspiration photos
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => setInspirationPhotos(Array.from(event.target.files ?? []))}
+              />
+            </label>
+            <small>{selectedInspirationPhotoText}</small>
+
+            <small>We automatically optimize uploads before sending.</small>
             <label>
               Project details
               <textarea
@@ -239,7 +269,7 @@ export default function EstimatorAgentWidget() {
               <p className="rendering-source">
                 Source:{" "}
                 {result.rendering.source === "customer_upload"
-                  ? "Uploaded customer photo"
+                  ? "Uploaded property photo"
                   : result.rendering.source === "google_street_view"
                     ? "Google Street View (address-based fallback)"
                     : "Fallback mock-up"}

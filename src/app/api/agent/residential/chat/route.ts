@@ -19,6 +19,8 @@ type EstimatorRequest = {
   projectAddress?: string;
   timeline?: string;
   photos?: UploadedPhoto[];
+  propertyPhotos?: UploadedPhoto[];
+  inspirationPhotos?: UploadedPhoto[];
 };
 
 type EstimateLine = {
@@ -59,8 +61,14 @@ function parseBody(body: unknown): EstimatorRequest {
     messages: input.messages,
     projectAddress: input.projectAddress,
     timeline: input.timeline,
-    photos: input.photos ?? []
+    photos: input.photos ?? [],
+    propertyPhotos: input.propertyPhotos ?? [],
+    inspirationPhotos: input.inspirationPhotos ?? []
   };
+}
+
+function getValidDataUrlPhotos(photos: UploadedPhoto[]): UploadedPhoto[] {
+  return photos.filter((photo) => typeof photo.dataUrl === "string" && photo.dataUrl.startsWith("data:image/"));
 }
 
 function identifyProjectType(text: string): keyof typeof PROJECT_BASE_COSTS {
@@ -123,10 +131,18 @@ function buildGoogleStreetViewUrl(address: string): string | null {
 }
 
 function pickRenderingSource(body: EstimatorRequest, projectType: string): { imageUrl: string; source: string } {
-  const firstUploadedPhoto = body.photos?.find((photo) => typeof photo.dataUrl === "string" && photo.dataUrl.startsWith("data:image/"));
-  if (firstUploadedPhoto?.dataUrl) {
+  const propertyPhoto = getValidDataUrlPhotos(body.propertyPhotos ?? [])[0];
+  if (propertyPhoto?.dataUrl) {
     return {
-      imageUrl: firstUploadedPhoto.dataUrl,
+      imageUrl: propertyPhoto.dataUrl,
+      source: "customer_upload"
+    };
+  }
+
+  const legacyPhoto = getValidDataUrlPhotos(body.photos ?? [])[0];
+  if (legacyPhoto?.dataUrl) {
+    return {
+      imageUrl: legacyPhoto.dataUrl,
       source: "customer_upload"
     };
   }
@@ -178,22 +194,30 @@ async function generateAiEstimate(body: EstimatorRequest, transcript: string): P
     return null;
   }
 
-  const photoSummary = (body.photos ?? []).map((photo) => `${photo.name} (${photo.type}, ${photo.size} bytes)`).join(", ");
+  const propertyPhotoSummary = (body.propertyPhotos ?? [])
+    .map((photo) => `${photo.name} (${photo.type}, ${photo.size} bytes)`)
+    .join(", ");
+  const inspirationPhotoSummary = (body.inspirationPhotos ?? [])
+    .map((photo) => `${photo.name} (${photo.type}, ${photo.size} bytes)`)
+    .join(", ");
 
   const systemPrompt = [
     "You are an experienced residential construction estimator and project designer assistant.",
     "Return STRICT JSON only with keys: assistantSummary, projectType, lowEstimate, highEstimate, lineItems.",
     "lineItems must be an array of {label, amount} where amount is integer USD.",
     "Keep the estimate non-binding and realistic for early planning, with a reasonable range.",
-    "assistantSummary should be concise (2-4 sentences), practical, and mention this is not a final proposal."
+    "assistantSummary should be concise (2-4 sentences), practical, and mention this is not a final proposal.",
+    "If property photos and inspiration photos are provided, acknowledge that you considered both existing conditions and design preferences."
   ].join(" ");
 
   const userPrompt = {
     messages: body.messages,
     projectAddress: body.projectAddress ?? "",
     timeline: body.timeline ?? "",
-    uploadedPhotoCount: body.photos?.length ?? 0,
-    uploadedPhotoSummary: photoSummary,
+    propertyPhotoCount: body.propertyPhotos?.length ?? 0,
+    propertyPhotoSummary,
+    inspirationPhotoCount: body.inspirationPhotos?.length ?? 0,
+    inspirationPhotoSummary,
     transcript
   };
 
@@ -241,6 +265,7 @@ async function generateAiEstimate(body: EstimatorRequest, transcript: string): P
       return null;
     }
   }
+
   if (
     typeof parsed.assistantSummary !== "string" ||
     typeof parsed.projectType !== "string" ||
@@ -274,7 +299,8 @@ export async function POST(req: Request) {
     const transcript = body.messages.map((entry) => entry.content).join("\n");
     const fallbackEstimate = buildHeuristicEstimate(transcript);
     const rendering = pickRenderingSource(body, fallbackEstimate.type);
-    const photoCount = body.photos?.length ?? 0;
+    const propertyPhotoCount = body.propertyPhotos?.length ?? 0;
+    const inspirationPhotoCount = body.inspirationPhotos?.length ?? 0;
 
     const aiEstimate = await generateAiEstimate(body, transcript);
 
@@ -285,15 +311,16 @@ export async function POST(req: Request) {
 
     const sourceMessage =
       rendering.source === "customer_upload"
-        ? "I used your uploaded house photo as the rendering base so the concept is grounded in your real conditions."
+        ? "I used your uploaded property photo as the rendering base so the concept is grounded in your real conditions."
         : rendering.source === "google_street_view"
-          ? "I used a Google Street View photo from your project address as the rendering base because no upload was provided."
-          : "I could not access a house photo, so I generated a generic concept placeholder. Add a photo or provide a Google Maps API key for address-based imagery.";
+          ? "I used a Google Street View photo from your project address as the rendering base because no property upload was provided."
+          : "I could not access a property photo, so I generated a generic concept placeholder. Add a property photo or provide a Google Maps API key for address-based imagery.";
 
     const assistantMessage = aiEstimate?.assistantSummary
       ? `${aiEstimate.assistantSummary} ${sourceMessage}`
       : [
-          `Great start! I reviewed your ${projectType} project details${photoCount ? ` and ${photoCount} uploaded photo(s)` : ""}.`,
+          `Great start! I reviewed your ${projectType} project details.`,
+          `I see ${propertyPhotoCount} property/project photo(s) and ${inspirationPhotoCount} inspiration photo(s).`,
           "I can act as your personal project designer by turning your scope into concept drawings/renderings and early budget guidance.",
           sourceMessage,
           "Tip: the more measurements, finish preferences, must-haves, and progress photos you share, the more useful and accurate your concept + range will be.",
