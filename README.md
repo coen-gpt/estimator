@@ -80,6 +80,8 @@ Required values:
 - `JOBBER_REDIRECT_URI` (must exactly match callback URL in Jobber app settings)
 - `OAUTH_STATE_SECRET` (long random secret used for signed OAuth state)
 - `APP_BASE_URL` (`https://app.coenconstruction.com` in production)
+- `OPENAI_API_KEY` (server-side key for estimator AI responses)
+- `OPENAI_MODEL` (optional, defaults to `gpt-4.1-mini`)
 
 ## Prisma setup
 1. Install dependencies:
@@ -150,6 +152,11 @@ curl -X POST http://localhost:3000/api/agent/residential/chat \
 ```
 
 Expected response includes `assistantMessage`, `roughEstimate`, and `rendering.imageUrl`.
+
+Estimator AI note:
+- The widget AI logic uses the server route with `OPENAI_API_KEY` from environment variables.
+- Do **not** hardcode API keys in source files; keep them only in `.env` / deployment secrets.
+
 
 If no photos are uploaded, you can set `GOOGLE_MAPS_API_KEY` and provide a project address so the app can use Google Street View as an address-based fallback rendering source.
 

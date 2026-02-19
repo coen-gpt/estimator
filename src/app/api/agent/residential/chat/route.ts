@@ -26,6 +26,14 @@ type EstimateLine = {
   amount: number;
 };
 
+type AiEstimatePayload = {
+  assistantSummary: string;
+  projectType: string;
+  lowEstimate: number;
+  highEstimate: number;
+  lineItems: EstimateLine[];
+};
+
 const PROJECT_BASE_COSTS: Record<string, number> = {
   kitchen: 32000,
   bathroom: 18000,
@@ -139,7 +147,7 @@ function pickRenderingSource(body: EstimatorRequest, projectType: string): { ima
   };
 }
 
-function buildEstimate(text: string): { type: string; lines: EstimateLine[]; low: number; high: number } {
+function buildHeuristicEstimate(text: string): { type: string; lines: EstimateLine[]; low: number; high: number } {
   const type = identifyProjectType(text);
   const sqft = extractSqft(text);
   const base = PROJECT_BASE_COSTS[type];
@@ -164,13 +172,103 @@ function buildEstimate(text: string): { type: string; lines: EstimateLine[]; low
   };
 }
 
+async function generateAiEstimate(body: EstimatorRequest, transcript: string): Promise<AiEstimatePayload | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  const photoSummary = (body.photos ?? []).map((photo) => `${photo.name} (${photo.type}, ${photo.size} bytes)`).join(", ");
+
+  const systemPrompt = [
+    "You are an experienced residential construction estimator and project designer assistant.",
+    "Return STRICT JSON only with keys: assistantSummary, projectType, lowEstimate, highEstimate, lineItems.",
+    "lineItems must be an array of {label, amount} where amount is integer USD.",
+    "Keep the estimate non-binding and realistic for early planning, with a reasonable range.",
+    "assistantSummary should be concise (2-4 sentences), practical, and mention this is not a final proposal."
+  ].join(" ");
+
+  const userPrompt = {
+    messages: body.messages,
+    projectAddress: body.projectAddress ?? "",
+    timeline: body.timeline ?? "",
+    uploadedPhotoCount: body.photos?.length ?? 0,
+    uploadedPhotoSummary: photoSummary,
+    transcript
+  };
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(userPrompt) }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    return null;
+  }
+
+  const parsed = JSON.parse(content) as Partial<AiEstimatePayload>;
+  if (
+    typeof parsed.assistantSummary !== "string" ||
+    typeof parsed.projectType !== "string" ||
+    typeof parsed.lowEstimate !== "number" ||
+    typeof parsed.highEstimate !== "number" ||
+    !Array.isArray(parsed.lineItems)
+  ) {
+    return null;
+  }
+
+  const lineItems = parsed.lineItems
+    .filter((item): item is EstimateLine => {
+      if (!item || typeof item !== "object") return false;
+      const value = item as Partial<EstimateLine>;
+      return typeof value.label === "string" && typeof value.amount === "number";
+    })
+    .map((item) => ({ label: item.label, amount: Math.round(item.amount) }));
+
+  return {
+    assistantSummary: parsed.assistantSummary,
+    projectType: parsed.projectType,
+    lowEstimate: Math.round(parsed.lowEstimate),
+    highEstimate: Math.round(parsed.highEstimate),
+    lineItems
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = parseBody(await req.json());
     const transcript = body.messages.map((entry) => entry.content).join("\n");
-    const estimate = buildEstimate(transcript);
+    const fallbackEstimate = buildHeuristicEstimate(transcript);
+    const rendering = pickRenderingSource(body, fallbackEstimate.type);
     const photoCount = body.photos?.length ?? 0;
-    const rendering = pickRenderingSource(body, estimate.type);
+
+    const aiEstimate = await generateAiEstimate(body, transcript);
+
+    const projectType = aiEstimate?.projectType ?? fallbackEstimate.type;
+    const low = aiEstimate?.lowEstimate ?? fallbackEstimate.low;
+    const high = aiEstimate?.highEstimate ?? fallbackEstimate.high;
+    const lineItems = aiEstimate?.lineItems.length ? aiEstimate.lineItems : fallbackEstimate.lines;
 
     const sourceMessage =
       rendering.source === "customer_upload"
@@ -179,26 +277,28 @@ export async function POST(req: Request) {
           ? "I used a Google Street View photo from your project address as the rendering base because no upload was provided."
           : "I could not access a house photo, so I generated a generic concept placeholder. Add a photo or provide a Google Maps API key for address-based imagery.";
 
-    const assistantMessage = [
-      `Great start! I reviewed your ${estimate.type} project details${photoCount ? ` and ${photoCount} uploaded photo(s)` : ""}.`,
-      "I can act as your personal project designer by turning your scope into concept drawings/renderings and early budget guidance.",
-      sourceMessage,
-      "Tip: the more measurements, finish preferences, must-haves, and progress photos you share, the more useful and accurate your concept + range will be.",
-      `Based on what you provided, your preliminary planning range is **$${estimate.low.toLocaleString()} - $${estimate.high.toLocaleString()}**.`,
-      "This is a planning estimate only (not a formal proposal). A licensed human estimator must confirm site conditions, measurements, and code requirements on-site."
-    ].join(" ");
+    const assistantMessage = aiEstimate?.assistantSummary
+      ? `${aiEstimate.assistantSummary} ${sourceMessage}`
+      : [
+          `Great start! I reviewed your ${projectType} project details${photoCount ? ` and ${photoCount} uploaded photo(s)` : ""}.`,
+          "I can act as your personal project designer by turning your scope into concept drawings/renderings and early budget guidance.",
+          sourceMessage,
+          "Tip: the more measurements, finish preferences, must-haves, and progress photos you share, the more useful and accurate your concept + range will be.",
+          `Based on what you provided, your preliminary planning range is **$${low.toLocaleString()} - $${high.toLocaleString()}**.`,
+          "This is a planning estimate only (not a formal proposal). A licensed human estimator must confirm site conditions, measurements, and code requirements on-site."
+        ].join(" ");
 
     return NextResponse.json({
       ok: true,
       assistantMessage,
       roughEstimate: {
-        projectType: estimate.type,
-        low: estimate.low,
-        high: estimate.high,
-        lineItems: estimate.lines
+        projectType,
+        low,
+        high,
+        lineItems
       },
       rendering: {
-        title: `${estimate.type[0].toUpperCase()}${estimate.type.slice(1)} concept rendering`,
+        title: `${projectType[0].toUpperCase()}${projectType.slice(1)} concept rendering`,
         imageUrl: rendering.imageUrl,
         source: rendering.source
       }
