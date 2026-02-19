@@ -157,6 +157,8 @@ Estimator AI note:
 - The widget AI logic uses the server route with `OPENAI_API_KEY` from environment variables.
 - Do **not** hardcode API keys in source files; keep them only in `.env` / deployment secrets.
 
+- If you see `Unexpected token` or `Request Entity Too Large`, reduce photo count/size; the widget now auto-optimizes uploads before sending.
+
 
 If no photos are uploaded, you can set `GOOGLE_MAPS_API_KEY` and provide a project address so the app can use Google Street View as an address-based fallback rendering source.
 

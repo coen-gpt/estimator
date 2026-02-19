@@ -227,7 +227,20 @@ async function generateAiEstimate(body: EstimatorRequest, transcript: string): P
     return null;
   }
 
-  const parsed = JSON.parse(content) as Partial<AiEstimatePayload>;
+  let parsed: Partial<AiEstimatePayload>;
+  try {
+    parsed = JSON.parse(content) as Partial<AiEstimatePayload>;
+  } catch {
+    const jsonBlockMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonBlockMatch) {
+      return null;
+    }
+    try {
+      parsed = JSON.parse(jsonBlockMatch[0]) as Partial<AiEstimatePayload>;
+    } catch {
+      return null;
+    }
+  }
   if (
     typeof parsed.assistantSummary !== "string" ||
     typeof parsed.projectType !== "string" ||

@@ -40,19 +40,68 @@ const currency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
-function fileToDataUrl(file: File): Promise<string> {
+const MAX_RENDERING_PHOTOS = 2;
+const MAX_IMAGE_DIMENSION = 1280;
+const JPEG_QUALITY = 0.72;
+
+function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error(`Failed to read ${file.name}.`));
+    const blobUrl = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl);
+      resolve(img);
     };
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}.`));
-    reader.readAsDataURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      reject(new Error(`Failed to load ${file.name}.`));
+    };
+    img.src = blobUrl;
   });
+}
+
+async function fileToOptimizedDataUrl(file: File): Promise<string> {
+  const image = await loadImage(file);
+  const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not process image for upload.");
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+}
+
+async function parseApiResponse(response: Response): Promise<{
+  ok: boolean;
+  assistantMessage?: string;
+  roughEstimate?: AgentResult["roughEstimate"];
+  rendering?: AgentResult["rendering"];
+  error?: string;
+}> {
+  const rawBody = await response.text();
+  try {
+    return JSON.parse(rawBody) as {
+      ok: boolean;
+      assistantMessage?: string;
+      roughEstimate?: AgentResult["roughEstimate"];
+      rendering?: AgentResult["rendering"];
+      error?: string;
+    };
+  } catch {
+    return {
+      ok: false,
+      error:
+        "The server returned a non-JSON response. This usually means the request was too large (try fewer/smaller photos) or the server errored before JSON handling."
+    };
+  }
 }
 
 export default function EstimatorAgentWidget() {
@@ -89,11 +138,11 @@ export default function EstimatorAgentWidget() {
 
     try {
       const photosWithData = await Promise.all(
-        photos.slice(0, 3).map(async (photo): Promise<SerializablePhoto> => ({
+        photos.slice(0, MAX_RENDERING_PHOTOS).map(async (photo): Promise<SerializablePhoto> => ({
           name: photo.name,
           size: photo.size,
           type: photo.type,
-          dataUrl: await fileToDataUrl(photo)
+          dataUrl: await fileToOptimizedDataUrl(photo)
         }))
       );
 
@@ -108,13 +157,7 @@ export default function EstimatorAgentWidget() {
         })
       });
 
-      const data = (await response.json()) as {
-        ok: boolean;
-        assistantMessage?: string;
-        roughEstimate?: AgentResult["roughEstimate"];
-        rendering?: AgentResult["rendering"];
-        error?: string;
-      };
+      const data = await parseApiResponse(response);
 
       if (!response.ok || !data.ok || !data.assistantMessage || !data.roughEstimate || !data.rendering) {
         throw new Error(data.error ?? "The estimator agent could not generate a response.");
@@ -173,7 +216,7 @@ export default function EstimatorAgentWidget() {
                 onChange={(event) => setPhotos(Array.from(event.target.files ?? []))}
               />
             </label>
-            <small>{selectedPhotoText}</small>
+            <small>{selectedPhotoText} (we automatically optimize uploads before sending)</small>
             <label>
               Project details
               <textarea
